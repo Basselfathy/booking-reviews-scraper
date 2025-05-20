@@ -274,6 +274,7 @@ class Input(BaseModel):
 
     n_rows: Optional[int] = -1
     stop_critera: Optional[StopCritera] = None
+    download_photos: Optional[bool] = True
 
 
 sort_by_map = {

@@ -106,7 +106,7 @@ class Scrape:
         self,
         ls_reviews: List[dict] = None,
     ):
-        """save local csv files. It creates a direcotry based on "entity_name" and stores
+        """save local csv files. It creates a directory based on "entity_name" and stores
         two csv files in it.
 
         - reviews.csv: contains reviews
@@ -129,7 +129,7 @@ class Scrape:
             if os.path.exists(fname):
                 write_header = False
 
-            with open(fname, "a", newline="") as file:
+            with open(fname, "a", newline="", encoding="utf-8") as file:
                 try:
                     writer = csv.writer(file)
                     if write_header:
@@ -329,6 +329,11 @@ class Scrape:
             soup = BeautifulSoup(response.content.decode(), "html.parser")
             reviews = soup.select("ul.review_list > li")
 
+            # Debug: Check raw HTML for photos in the first review
+            # if len(reviews) > 0:
+            #     self.logger.info("Debugging reviews HTML:")
+            #     self.logger.info(reviews[0])
+
             for i in range(
                 len(reviews)
             ):  # iterate on the review items of the current page
@@ -470,7 +475,38 @@ class Scrape:
                 else:
                     owner_response = None
 
+                # Extract review photos URLs and download them
+                photos_urls = []
+                photos_ul = review.find("ul", class_="c-review-block__photos")
+                # self.logger.info(f"Review photos UL found: {photos_ul is not None}")
+                if photos_ul:
+                    photo_buttons = photos_ul.find_all(
+                        "button", class_="c-review-block__photos__button"
+                    )
+                    self.logger.info(f"Found {len(photo_buttons)} photo buttons")
+                    for button in photo_buttons:
+                        photo_url = button.get("data-photos-src", "")
+                        if photo_url and "max1280x900" in photo_url:
+                            photos_urls.append(photo_url)
+                            self.logger.info(f"Added photo URL: {photo_url}")
+                        else:
+                            self.logger.info(f"Skipped photo URL: {photo_url}")
+
+                review_id = f"review_{idx}_{i}"
+                # Download photos if any were found and photo downloading is enabled
+                local_photo_paths = []
+                if (
+                    photos_urls
+                    and self._save_data_to_disk
+                    and self.input_params.download_photos
+                ):
+                    local_photo_paths = self._download_photos(
+                        review_id, photos_urls, date
+                    )
+
                 res = {
+                    "hotel_name": self.input_params.hotel_name,
+                    "review_id": review_id,
                     "username": username,
                     "user_country": user_country,
                     "room_view": room_view,
@@ -487,6 +523,8 @@ class Scrape:
                     "found_helpful": found_helpful,
                     "found_unhelpful": found_unhelpful,
                     "owner_resp_text": owner_response,
+                    "review_photos": photos_urls,
+                    "local_photo_paths": local_photo_paths,
                 }
                 page_reviews.append(res)
 
@@ -496,6 +534,68 @@ class Scrape:
             pages_reviews.append({"idx": idx, "reviews": page_reviews})
 
         return pages_reviews
+
+    def _download_photos(
+        self, review_id: str, photos_urls: List[str], review_date: str
+    ) -> List[str]:
+        """Downloads photos for a review and saves them in a reviewer-specific directory.
+
+        Args:
+            review_id: The reviewer's review_id (used for directory name)
+            photos_urls: List of photo URLs to download
+            review_date: Review date to use in filename
+
+        Returns:
+            List of local paths where the photos were saved
+        """
+        if not photos_urls:
+            return []
+
+        # Create base photos directory
+        photos_base_dir = self._LOCAL_OUTPUT_PATH.format(
+            output_dir=self._config.OUTPUT_DIR, entity_name=self.input_params.hotel_name
+        )
+        photos_base_dir = os.path.join(photos_base_dir, "photos")
+
+        # Create reviewer directory - use review date to make it unique
+        review_file = "".join(
+            id for id in review_id if id.isalnum() or id in (" ", "-", "_")
+        ).strip()
+        reviewer_dir = os.path.join(photos_base_dir, f"{review_file}")
+
+        if not os.path.exists(reviewer_dir):
+            os.makedirs(reviewer_dir, exist_ok=True)
+
+        local_paths = []
+        for idx, photo_url in enumerate(photos_urls, 1):
+            try:
+                response = requests.get(photo_url, headers=headers)
+                if response.status_code == 200:
+                    # Extract file extension from URL or default to .jpg
+                    ext = os.path.splitext(photo_url)[1]
+                    if not ext or len(ext) > 5:  # If no extension or suspicious length
+                        ext = ".jpg"
+
+                    filename = f"photo_{idx}{ext}"
+                    file_path = os.path.join(reviewer_dir, filename)
+
+                    with open(file_path, "wb") as f:
+                        f.write(response.content)
+
+                    local_paths.append(file_path)
+                    self.logger.info(
+                        f"Successfully downloaded photo {idx} for reviewer {review_id}"
+                    )
+                else:
+                    self.logger.error(
+                        f"Failed to download photo {idx} for reviewer {review_id}: Status {response.status_code}"
+                    )
+            except Exception as ex:
+                self.logger.error(
+                    f"Error downloading photo {idx} for reviewer {review_id}: {str(ex)}"
+                )
+
+        return local_paths
 
     ##########################################################
     # ******** Scraping Modes full/partial ********

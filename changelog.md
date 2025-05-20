@@ -1,3 +1,10 @@
+## 19-May-2025 
+
+#### Added
+1. Made photo downloading optional through CLI and module interface
+2. Added download_photos parameter to control whether review photos are downloaded
+
+
 ## 9-September-2024
 
 #### Added

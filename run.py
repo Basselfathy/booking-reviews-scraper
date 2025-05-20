@@ -51,16 +51,25 @@ def execute(
     save_review_to_disk: Annotated[
         bool,
         typer.Option(
-            help="Whehter to save reviews on the local disk or not",
+            help="Whether to save reviews on the local disk or not",
             rich_help_panel="Secondary Arguments",
         ),
     ] = True,
+    no_download_photos: Annotated[
+        bool,
+        typer.Option(
+            "--no-download-photos",
+            help="Skip downloading review photos",
+            rich_help_panel="Secondary Arguments",
+        ),
+    ] = False,
 ):
     input_params = {
         "hotel_name": hotel_name,
         "country": country,
         "sort_by": sort_by,
         "n_rows": n_reviews,
+        "download_photos": not no_download_photos,
     }
 
     if stop_criteria_username:
@@ -84,6 +93,7 @@ def run_as_module(
     save_to_disk: bool = True,
     stop_cri_user: str = "",
     stop_cri_title: str = "",
+    download_photos: bool = True,
     logger: Logger | None = None,
 ) -> List[dict]:
     """To run the scrapper as module by third party code
@@ -96,6 +106,8 @@ def run_as_module(
         save_to_disk: Whether to save both metadata and reviews to disk
         stop_cri_user: Username of the review. Stop further scraping when review of this username is found
         stop_cri_title: Review title to find. Stop further scraping when given username and review title is found
+        download_photos: Whether to download review photos along with reviews
+        logger: Optional logger instance to use for logging
     """
 
     input_params = {
@@ -103,6 +115,7 @@ def run_as_module(
         "country": country,
         "sort_by": sort_by,
         "n_rows": n_reviews,
+        "download_photos": download_photos,
     }
 
     if stop_cri_user:
