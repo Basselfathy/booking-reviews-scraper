@@ -95,6 +95,7 @@ def run_as_module(
     stop_cri_title: str = "",
     download_photos: bool = True,
     logger: Logger | None = None,
+    is_gui: bool = False,  # New parameter to indicate if called from GUI
 ) -> List[dict]:
     """To run the scrapper as module by third party code
 
@@ -108,8 +109,8 @@ def run_as_module(
         stop_cri_title: Review title to find. Stop further scraping when given username and review title is found
         download_photos: Whether to download review photos along with reviews
         logger: Optional logger instance to use for logging
+        is_gui: Whether the function is being called from GUI
     """
-
     input_params = {
         "hotel_name": hotel_name,
         "country": country,
@@ -126,7 +127,7 @@ def run_as_module(
 
         input_params["stop_critera"] = stop
 
-    s = Scrape(input_params, save_data_to_disk=save_to_disk, logger=logger)
+    s = Scrape(input_params, save_data_to_disk=save_to_disk, logger=logger, is_gui=is_gui)  # Pass is_gui to Scrape
     ls_reviews = s.run()
     print(f"Scrapping Complete: Total Reviews  {len(ls_reviews)}")
     return ls_reviews

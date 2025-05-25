@@ -26,31 +26,32 @@ headers = {"User-Agent": safari_user_agent}
 
 
 class Scrape:
-    def __init__(self, input: dict, save_data_to_disk=True, logger=None) -> None:
+    def __init__(
+        self, input: dict, save_data_to_disk=True, logger=None, is_gui=False
+    ) -> None:
+        self.is_gui = is_gui  # Store GUI mode flag
+
         if "job_id" not in os.environ:
-            os.environ["job_id"] = str(datetime.now().strftime("%Y_%m_%d_%H_%M_%S"))
+            os.environ["job_id"] = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
 
         if logger is not None:
             self.logger = logger
         else:
             self._get_logger()
-            self.logger = logging.getLogger()
 
         self._config = self._load_config()
         self.input_params = Input(**input)
 
-        # the below property is for the purpose of monitoring progress
-        # It contains the parsed reviews of processed pages and their idx
-        self._parsed_pages_reviews = (
-            mp.Manager().list()
-        )  # It will contians the list of reviews for each page
-        self._execution_finished = (
-            mp.Event()
-        )  # set this event when execution if finished
+        # Use a normal list instead of mp.Manager().list() for GUI mode
+        self._parsed_pages_reviews = [] if is_gui else mp.Manager().list()
+
+        # Use threading.Event instead of mp.Event for GUI mode
+        self._execution_finished = threading.Event() if is_gui else mp.Event()
 
         st_ = ""
         for key, value in self.input_params.model_dump().items():
-            st_ += f"-->  {key}: {value}\n"
+            st_ += f"{key}: {value}\n"
+
         self.logger.info(
             f"\n\n******** Input Params ********\n{st_}************************\n\n"
         )
